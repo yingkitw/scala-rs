@@ -46,3 +46,21 @@ pub fn run_file(source: &str, check_only: bool, dump_tokens: bool, dump_ast: boo
 
     Ok(())
 }
+
+/// Parse and type-check, then interpret. Fails if lex, parse, typecheck, or runtime errors.
+pub fn typecheck_then_run(source: &str) -> Result<value::Value, String> {
+    typechecker::typecheck_source(source).map_err(|errs| {
+        errs.iter()
+            .map(std::string::ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n")
+    })?;
+    interpreter::Interpreter::new()
+        .run_source(source)
+        .map_err(|e| e.to_string())
+}
+
+/// Interpret only (no static type pass), same as [`interpreter::Interpreter::run_source`] on a fresh interpreter.
+pub fn interpret_source(source: &str) -> Result<value::Value, interpreter::RuntimeError> {
+    interpreter::Interpreter::new().run_source(source)
+}

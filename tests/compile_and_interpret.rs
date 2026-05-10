@@ -77,13 +77,11 @@ fn compile_success_and_runnable_val_def_control_flow_and_match() {
     );
     assert_eq!(assert_compile_success_and_runs(prog), Value::Int(100));
 
-    // Recursive calls are not typed with a forward-binding rule yet (`--check`
-    // reports not found inside the body). Use an equivalent closed form instead.
-    let closed = concat!(
-        "def triangular(n: Int): Int = n * (n + 1) / 2\n",
+    let recursive_tri = concat!(
+        "def triangular(n: Int): Int = if (n <= 0) 0 else n + triangular(n - 1)\n",
         "triangular(10)\n",
     );
-    assert_eq!(assert_compile_success_and_runs(closed), Value::Int(55));
+    assert_eq!(assert_compile_success_and_runs(recursive_tri), Value::Int(55));
 }
 
 #[test]

@@ -74,12 +74,21 @@ fn typecheck_stmt(stmt: &Stmt, env: &mut TypeEnv) -> Result<Ty, TypeError> {
             let param_tys: Vec<Ty> = def_decl.params.iter().map(|p| {
                 p.type_ann.as_ref().map(|t| resolve_type(t, env)).unwrap_or(Ty::Any)
             }).collect();
+            // Forward-declare name so recursive bodies (`def fact(n: Int): Int = … fact(n-1)`) resolve.
+            let result_stub = def_decl.return_type.as_ref().map(|t| resolve_type(t, env)).unwrap_or(Ty::Any);
+            let stub_fn_ty = Ty::Function {
+                params: param_tys.clone(),
+                result: Box::new(result_stub),
+            };
+            env.define(&def_decl.name, stub_fn_ty);
+
             env.push();
             for (param, ty) in def_decl.params.iter().zip(&param_tys) {
                 env.define(&param.name, ty.clone());
             }
             let body_ty = typecheck_expr(&def_decl.body, env)?;
             env.pop();
+
             if let Some(ret) = &def_decl.return_type {
                 let ret_ty = resolve_type(ret, env);
                 if !body_ty.is_subtype_of(&ret_ty) && !body_ty.is_error() && !ret_ty.is_error() {
@@ -88,10 +97,22 @@ fn typecheck_stmt(stmt: &Stmt, env: &mut TypeEnv) -> Result<Ty, TypeError> {
                         def_decl.span.clone(),
                     ));
                 }
-                env.define(&def_decl.name, Ty::Function { params: param_tys, result: Box::new(ret_ty.clone()) });
+                env.define(
+                    &def_decl.name,
+                    Ty::Function {
+                        params: param_tys,
+                        result: Box::new(ret_ty.clone()),
+                    },
+                );
                 Ok(ret_ty)
             } else {
-                env.define(&def_decl.name, Ty::Function { params: param_tys, result: Box::new(body_ty.clone()) });
+                env.define(
+                    &def_decl.name,
+                    Ty::Function {
+                        params: param_tys,
+                        result: Box::new(body_ty.clone()),
+                    },
+                );
                 Ok(body_ty)
             }
         }
@@ -125,6 +146,7 @@ fn typecheck_stmt(stmt: &Stmt, env: &mut TypeEnv) -> Result<Ty, TypeError> {
                 let _ = typecheck_stmt(stmt, env);
             }
             env.pop();
+            env.define(&obj.name, Ty::Named { name: obj.name.clone(), args: vec![] });
             Ok(Ty::Unit)
         }
         Stmt::ImportDecl { .. } => Ok(Ty::Unit),

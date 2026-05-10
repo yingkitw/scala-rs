@@ -2,20 +2,30 @@
 
 ## Overview
 
-scala is a Scala language interpreter implemented in Rust. It processes Scala source code through a classic compiler pipeline: **Lexing -> Parsing -> Type Checking -> Interpretation**.
+scala is a Scala language interpreter implemented in Rust. Sources always go through **lexing**, **parsing**, and **interpretation** when you run programs. **Type-checking is optional** depending on entry point: `--check` and **`typecheck_then_run`** run the checker first; ordinary file execution does not (unless you choose **`--verify-types`**).
 
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────────┐    ┌─────────────┐
-│  Source   │───>│  Lexer   │───>│   Parser     │───>│ Typechecker │
-│  (text)   │    │ (tokens) │    │   (AST)      │    │  (typed AST)│
-└──────────┘    └──────────┘    └──────────────┘    └──────┬──────┘
-                                                           │
-                                                           v
-                                                   ┌──────────────┐
-                                                   │ Interpreter  │
-                                                   │  (values)    │
-                                                   └──────────────┘
+│  Source   │───>│  Lexer   │───>│   Parser      │──>│ Interpreter │
+│  (text)   │    │ (tokens) │    │   (AST)       │    │   (values)  │
+└──────────┘    └──────────┘    └──────────────┘    └─────────────┘
+                                       │optional
+                                       v
+                               ┌───────────────┐
+                               │ Typechecker   │
+                               └───────────────┘
 ```
+
+### Execution modes (CLI and library)
+
+| Entry | Type-check before run? |
+|-------|-------------------------|
+| `scala <file.scala>` — `scala::run_file(_, false, …)` | No |
+| `scala --check <file>` — `scala::run_file(_, true, …)` | Yes (then exit; no interpreter) |
+| `scala --verify-types <file>` — `scala::typecheck_then_run` | Yes, then interpreter |
+| `scala::interpret_source` | No |
+
+`--tokens` / `--ast` dumps short-circuit after lex or parse respectively (see `lib.rs`).
 
 ## Module Structure
 
@@ -48,9 +58,19 @@ Design: State machine iterating over chars with lookahead.
 
 ### `ast.rs` — Abstract Syntax Tree
 
-The central data structures representing parsed Scala code. Uses arena-free, owned types.
+The central data structures use owned types (`Clone` where needed).
 
-**Expressions (`Expr` enum):**
+Programs are **`Vec<Stmt>`** at the top level.
+
+**Statements (`Stmt`):**
+- **`Expr`** — bare expression statement
+- **`ValDecl`** / **`VarDecl`** — bindings with optional type and pattern
+- **`DefDecl`** — methods and top-level functions (name, params, optional return **`TypeExpr`**, body **`Expr`**)
+- **`ClassDecl`** / **`TraitDecl`** / **`ObjectDecl`** — type and module scaffolding with nested **`Vec<Stmt>`** bodies
+- **`TypeDecl`** — type aliases
+- **`ImportDecl`** — import paths / selectors
+
+**Expressions (`Expr`)** — non-exhaustive list:
 - `Literal` — Int, Long, Float, Double, Bool, String, Char, Null, Unit
 - `Binary` — left op right (all operators)
 - `Unary` — prefix or postfix (negate, not)
@@ -73,17 +93,6 @@ The central data structures representing parsed Scala code. Uses arena-free, own
 - `This`, `Super`, `Wildcard`
 - `Paren` — wrapped expression
 
-**Declarations (`Decl` enum):**
-- `Val` — name, type annotation, value
-- `Var` — name, type annotation, value
-- `Def` — name, type params, params, return type, body
-- `Class` — name, type params, primary ctor, parents, body
-- `Trait` — name, type params, parents, body
-- `Object` — name, parents, body
-- `CaseClass` — name, type params, ctor params, parents, body
-- `TypeDef` — name, type params, rhs
-- `Import` — path with selectors
-
 **Patterns (`Pattern` enum):**
 - `Wildcard`, `Variable`, `Literal`, `Constructor`, `Tuple`, `Typed`, `Alternative`, `SequenceWildcard`
 
@@ -94,7 +103,7 @@ All nodes carry `Span` for source location.
 
 ### `parser.rs` — Recursive Descent Parser
 
-Converts `Vec<Token>` into `Vec<Decl>` (top-level) or `Expr`.
+Converts `Vec<Token>` into `Vec<Stmt>` (program) or a standalone **`Expr`** via **`Parser::parse_expr`**.
 
 Uses a **recursive descent** strategy with:
 - Token cursor (current position, lookahead)
@@ -117,46 +126,41 @@ Uses a **recursive descent** strategy with:
 12. Postfix (method call, field access, apply)
 13. Primary (literals, grouping, lambda, if, match, etc.)
 
-### `ty.rs` — Type Representation
+### `lib.rs` — Public API
 
-Runtime type representation used during type checking:
-- `TyInt`, `TyLong`, `TyDouble`, `TyFloat`, `TyBool`, `TyChar`, `TyString`, `TyUnit`
-- `TyAny`, `TyAnyVal`, `TyAnyRef`, `TyNothing`, `TyNull`
-- `TyFunction(params, return)`, `TyTuple(elements)`
-- `TyNamed(name)`, `TyParam(name)`, `TyApp(base, args)`
-- `TyError` for error recovery
+Thin wrappers used by the CLI and integration tests:
 
-Implements `SubtypeOf` for subtype checking.
+- **`run_file`** — tokenize, optionally dump tokens/AST, optionally `typecheck_program`, or run `Interpreter::run_source` on full text.
+- **`typecheck_then_run`** — `typecheck_source` then a fresh interpreter (`Result<Value, String>`).
+- **`interpret_source`** — parse + eval only (`Result<Value, RuntimeError>`).
 
-### `typechecker.rs` — Type Checker
+The interpreter does not retain a typed IR; “type checking” is a separate AST pass that mirrors what `typecheck_source` does on the same source text.
 
-Walks the AST and assigns types. Key operations:
-- **Environment**: Stack of scopes mapping names to types
-- **Expression typing**: Bottom-up, each expression produces a `Ty`
-- **Declaration typing**: Processes class/trait/object/def/val/var
-- **Type inference**: For val/var without type annotations, infers from initializer. For def without return type, infers from body (non-recursive only).
-- **Subtype checking**: Verifies assignments and method calls conform
-- **Generic instantiation**: Resolves type parameters at call sites
-- **Pattern checking**: Verifies pattern types match scrutinee
+### `ty.rs` — Type representation
 
-Produces a typed AST or type errors with spans.
+Static types used only in **`typechecker`** (not stored on runtime values):
 
-### `value.rs` — Runtime Values
+- Primitives: `Int`, `Long`, `Double`, `Float`, `Bool`, `Char`, `String`, `Unit`
+- Top / bottom: `Any`, `AnyVal`, `AnyRef`, `Nothing`, `Null`
+- `Function { params, result }`, `Tuple { elements }`
+- `Named { name, args }`, `Param`, `App`
+- `Error(String)` for propagated errors
 
-Runtime representation of evaluated expressions:
-- `VInt(i64)`, `VLong(i64)`, `VDouble(f64)`, `VFloat(f64)`
-- `VBool(bool)`, `VChar(char)`
-- `VString(String)`
-- `VUnit`
-- `VNull`
-- `VTuple(Vec<Value>)`
-- `VList(Vec<Value>)`
-- `VMap(Vec<(Value, Value)>)`
-- `VFunction(params, body, captured_env)` — closures
-- `VObject(class_name, fields, methods, trait_mixins)`
-- `VArray(Vec<Value>)`
+`TypeEnv` is a stack of `HashMap<String, Ty>` scopes (see `lookup` / `define` / `push` / `pop`).
 
-Implements `Display` for REPL output.
+### `typechecker.rs` — Type checker
+
+Walks the AST with a `TypeEnv` and returns `Ty` or **`TypeError`** with spans:
+
+- **Declarations:** `val`, `var`, **`def`**, `class`, `trait`, **`object`**. Top-level **`object` names** are registered in the enclosing scope after the object body is checked so **`O.method`** resolves in later statements.
+- **Self-recursion on `def`:** the function name is **forward-declared** with a stub (`Function` whose result is the declared return type, or `Any` if inferred) before the parameter frame is pushed, so bodies like `fact(n - 1)` type-check when an explicit return type is present.
+- Expression typing is partial: some operations fall back to **`Any`** where the implementation is intentionally loose.
+
+`typecheck_source` lexes and parses, then runs `typecheck_program`.
+
+### `value.rs` — Runtime values
+
+Interpreted data (`Value`): numeric types, `String`, `Bool`, `Char`, `Unit`, `Null`, `Nothing`; `Tuple`, `List`, `Map`, `Array`; closures (`Function` / `BuiltinFunction`); heap objects (`Object`). Implements `Display` for REPL output. Static types (`Ty`) are **not** stored on values.
 
 ### `env.rs` — Environment
 
@@ -180,36 +184,19 @@ Stack-based scoping for the interpreter:
 - `push()` / `pop()` — scope management
 - Closure capture: clone the environment chain at lambda definition time
 
-### `interpreter.rs` — Tree-Walking Evaluator
+### `interpreter.rs` — Tree-walking evaluator
 
-Evaluates typed AST to produce `Value`s.
+Evaluates the AST to `Value`s (there is no separate typed IR consumed at runtime). Strategy: strict evaluation, `Environment` stack, closures capture bindings at definition time, classes/objects use ctor + method tables, pattern matching with optional guards.
 
-**Evaluation strategy:**
-- Strict/eager evaluation of all expressions
-- Environment passed through evaluation
-- Closures capture environment at definition time
-- Classes define constructor functions + method tables
-- Traits provide method dictionaries
-- Pattern matching is destructuring + guards
-
-**Key methods:**
-- `eval_expr(expr, env) -> Value`
-- `exec_decl(decl, env) -> ()`
-- `eval_pattern(pattern, value, env) -> bool` (binds variables on match)
-- `call_function(fn, args, env) -> Value`
-- `instantiate_class(name, args, env) -> Value`
+Entry point used by CLI and tests: **`Interpreter::run_source`** (internally lex, parse, then `exec_stmt` for each top-level statement). Other logic is centered on **`eval_expr`**, **`exec_stmt`**, dispatch, and pattern binding.
 
 ### `repl.rs` — Interactive REPL
 
-Uses `rustyline` for line editing:
-- Reads input, detects multi-line (unclosed brackets)
-- Parses each entry (expression or declaration)
-- Type-checks
-- Evaluates
-- Prints result and type
-- Maintains persistent environment across entries
+Uses **`rustyline`** when available, otherwise stdin. Multi-line heuristic from bracket balance and keyword suffixes.
 
-### `stdlib.rs` — Standard Library
+Each input is **`Interpreter::run_source`** over that snippet only; nested environments persist across lines.
+
+Commands: **`:help`**, **`:quit`** / **`:q`**, **`:reset`**, **`:type &lt;expr&gt;`**. `:type` runs **`typechecker::typecheck_expr_standalone`** with a **new** prelude-only **`TypeEnv`** — it does **not** see `val` / `def` from earlier REPL submissions (see **`TODO.md`** for full-environment `:type`).
 
 Populates the global environment with built-in bindings:
 
@@ -255,6 +242,6 @@ Error types:
 1. **Tree-walking interpreter** over bytecode VM — simpler to implement, sufficient for the target use case
 2. **Recursive descent parser** over parser generators — more control, easier error messages
 3. **Arena-free AST** — owned types with `Clone` where needed, simpler memory management in Rust
-4. **Separate type checker** — enables `--check` mode and catches errors before evaluation
+4. **Separate type checker** — enables `--check`, library `typecheck_then_run`, and `--verify-types`; default file execution stays parse-then-interpret for compatibility
 5. **Method dispatch at runtime** — flexible for dynamic Scala patterns, trades some performance
 6. **Environment cloning for closures** — correct semantics, acceptable for interpreted mode

@@ -521,7 +521,7 @@ scala supports local type inference:
 - `val x = 42` infers `Int`
 - `def f(x: Int) = x + 1` infers return type `Int`
 - Lambda parameter types may be inferred from context
-- Recursive functions require explicit return types
+- **Self-recursive** `def`: the host typechecker accepts a body that calls the same function when a **return type** annotation is present (forward-binding). **Mutual** recursion is not fully supported yet (see **`TODO.md`**).
 
 ## 16. Semantics
 
@@ -532,3 +532,36 @@ scala supports local type inference:
 - `var` is reassignable
 - Blocks return their last expression
 - `Unit` has exactly one value: `()`
+
+## 17. Host tooling (this repository)
+
+Describes the **`scala`** Cargo package binary and library, not Scala language rules.
+
+### 17.1 CLI
+
+| Invocation | Behavior |
+|------------|----------|
+| `scala file.scala` | Lex, parse, interpret. **No** static type pass unless you opt in (next rows). |
+| `scala --check file.scala` | Lex, parse, **`typecheck_program`**, exit (no interpreter). |
+| `scala --verify-types file.scala` | Type-check, then interpret (**`typecheck_then_run`**). |
+| `scala --repl` | Interactive session; see **§17.3**. |
+| `scala --tokens file.scala` | Dump token stream. |
+| `scala --ast file.scala` | Pretty-print parsed AST. |
+| `scala --version` | Semver from **`Cargo.toml`**. |
+| `scala --help` | Short usage. |
+
+### 17.2 Rust API (`src/lib.rs`)
+
+| Function | Purpose |
+|----------|---------|
+| **`interpret_source`** | Parse + **`Interpreter::run_source`** (no typechecker). |
+| **`typecheck_then_run`** | **`typecheck_source`** then fresh interpreter; **`Result<Value, String>`**. |
+| **`run_file`** | Used by the CLI for dump / check / run combinations. |
+
+### 17.3 REPL
+
+Built-in commands: `:help`, `:quit` / `:q`, `:reset`. **`:type &lt;expr&gt;`** prints a static type using **`parse_expr`** plus a **fresh prelude-only** **`TypeEnv`** (bindings from earlier REPL lines are **not** visible there yet).
+
+### 17.4 Benchmarks
+
+`cargo bench --bench fib_interp` (Criterion) benchmarks **`typecheck_then_run`** on a small recursive Fibonacci program.

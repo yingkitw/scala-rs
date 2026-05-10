@@ -29,6 +29,20 @@ fn typechecks(source: &str) -> bool {
     typechecker::typecheck_program(&stmts).is_ok()
 }
 
+#[test]
+fn integration_typecheck_recursive_def() {
+    assert!(typechecks(
+        "def fact(n: Int): Int = if (n <= 1) 1 else n * fact(n - 1)\nfact(5)\n",
+    ));
+}
+
+#[test]
+fn integration_typecheck_object_module_ref() {
+    assert!(typechecks(
+        "object Utils { def double(x: Int): Int = x * 2 }\nUtils.double(21)\n",
+    ));
+}
+
 // ==================== LEXER TESTS ====================
 
 #[test]

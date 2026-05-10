@@ -1,4 +1,8 @@
 use crate::interpreter::Interpreter;
+use crate::lexer::Lexer;
+use crate::parser::Parser;
+use crate::ty::TypeEnv;
+use crate::typechecker;
 use crate::value::Value;
 
 pub fn run_repl() {
@@ -22,15 +26,27 @@ pub fn run_repl() {
                         }
                         if trimmed == ":help" {
                             println!("Commands:");
-                            println!("  :quit, :q    Exit the REPL");
-                            println!("  :help        Show this help");
-                            println!("  :reset       Reset the environment");
-                            println!("  :type <expr> Show the type of an expression");
+                            println!("  :quit, :q       Exit the REPL");
+                            println!("  :help           Show this help");
+                            println!("  :reset          Reset the environment");
+                            println!("  :type <expr>    Show inferred type (prelude only — REPL defs ignored)");
                             continue;
                         }
                         if trimmed == ":reset" {
                             interp = Interpreter::new();
                             println!("Environment reset.");
+                            continue;
+                        }
+                        if trimmed.starts_with(":type") {
+                            let expr_src = trimmed.strip_prefix(":type").unwrap_or("").trim();
+                            if expr_src.is_empty() {
+                                eprintln!("usage: :type <expression>");
+                                continue;
+                            }
+                            match preview_expression_type(expr_src) {
+                                Ok(s) => println!("{}", s),
+                                Err(msg) => eprintln!("{}", msg),
+                            }
                             continue;
                         }
 
@@ -130,6 +146,31 @@ fn run_basic_repl(interp: &mut Interpreter) {
         if trimmed == ":quit" || trimmed == ":q" {
             break;
         }
+        if trimmed == ":help" {
+            println!("Commands:");
+            println!("  :quit, :q       Exit");
+            println!("  :help           This help");
+            println!("  :reset          Reset interpreter");
+            println!("  :type <expr>    Type (prelude only)");
+            continue;
+        }
+        if trimmed == ":reset" {
+            *interp = Interpreter::new();
+            println!("Environment reset.");
+            continue;
+        }
+        if trimmed.starts_with(":type") {
+            let expr_src = trimmed.strip_prefix(":type").unwrap_or("").trim();
+            if expr_src.is_empty() {
+                eprintln!("usage: :type <expression>");
+                continue;
+            }
+            match preview_expression_type(expr_src) {
+                Ok(s) => println!("{}", s),
+                Err(msg) => eprintln!("{}", msg),
+            }
+            continue;
+        }
 
         match interp.run_source(trimmed) {
             Ok(Value::Unit) => {}
@@ -137,4 +178,14 @@ fn run_basic_repl(interp: &mut Interpreter) {
             Err(e) => eprintln!("{}", e),
         }
     }
+}
+
+fn preview_expression_type(expr_src: &str) -> Result<String, String> {
+    let tokens = Lexer::tokenize(expr_src).map_err(|e| e.message)?;
+    let expr = Parser::parse_expr(tokens).map_err(|e| e.message)?;
+    let mut env = TypeEnv::new();
+    env.define_builtin_types();
+    typechecker::typecheck_expr_standalone(&expr, &mut env)
+        .map(|ty| ty.to_string())
+        .map_err(|e| e.to_string())
 }

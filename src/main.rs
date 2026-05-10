@@ -9,6 +9,7 @@ fn print_usage() {
     println!("  scala <file.scala>           Run a Scala source file");
     println!("  scala --repl                 Start interactive REPL");
     println!("  scala --check <file>         Type-check only");
+    println!("  scala --verify-types <file>  Type-check, then run");
     println!("  scala --tokens <file>        Dump tokens");
     println!("  scala --ast <file>           Dump AST");
     println!("  scala --help                 Show this help");
@@ -29,10 +30,25 @@ fn main() {
             print_usage();
         }
         "--version" | "-v" => {
-            println!("scala 0.1.0");
+            println!(concat!("scala ", env!("CARGO_PKG_VERSION")));
         }
         "--repl" => {
             scala::repl::run_repl();
+        }
+        "--verify-types" => {
+            if args.len() < 3 {
+                eprintln!("error: --verify-types requires a file argument");
+                process::exit(1);
+            }
+            let path = &args[2];
+            let source = fs::read_to_string(path).unwrap_or_else(|e| {
+                eprintln!("error: cannot read '{}': {}", path, e);
+                process::exit(1);
+            });
+            if let Err(e) = scala::typecheck_then_run(&source) {
+                eprintln!("{}", e);
+                process::exit(1);
+            }
         }
         "--check" => {
             if args.len() < 3 {

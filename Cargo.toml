@@ -1,0 +1,17 @@
+[package]
+name = "scala-rs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "A experimental Scala interpreter written in Rust: lexer, parser, type inference, and tree-walking evaluation with a REPL."
+readme = "README.md"
+keywords = ["scala", "interpreter", "language", "repl", "parser"]
+categories = ["compilers", "parser-implementations"]
+authors = ["Ying Kit WONG"]
+license = "Apache-2.0"
+repository = "https://github.com/yingkitw/scala-rs"
+homepage = "https://github.com/yingkitw/scala-rs"
+documentation = "https://docs.rs/scala"
+
+[dependencies]
+rustyline = "14"

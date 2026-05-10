@@ -1,8 +1,8 @@
-use scala_rs::interpreter::Interpreter;
-use scala_rs::value::Value;
-use scala_rs::lexer::Lexer;
-use scala_rs::parser::Parser;
-use scala_rs::typechecker;
+use scala::interpreter::Interpreter;
+use scala::value::Value;
+use scala::lexer::Lexer;
+use scala::parser::Parser;
+use scala::typechecker;
 
 fn eval(source: &str) -> Value {
     let mut interp = Interpreter::new();

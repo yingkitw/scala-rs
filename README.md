@@ -1,4 +1,4 @@
-# scala-rs
+# scala
 
 A Scala language implementation written in Rust. An interpreter for a practical subset of Scala, featuring type inference, pattern matching, classes, traits, and a REPL.
 
@@ -85,7 +85,7 @@ cargo test
 ## Project Structure
 
 ```
-scala-rs/
+scala/
 ├── src/
 │   ├── main.rs          # CLI entry point
 │   ├── lib.rs           # Library root

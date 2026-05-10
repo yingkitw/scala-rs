@@ -1,4 +1,4 @@
-# scala-rs Implementation TODO
+# scala Implementation TODO
 
 ## Phase 1: Lexer / Tokenizer
 - [x] Token type definitions (keywords, operators, literals, identifiers, delimiters)

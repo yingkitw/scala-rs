@@ -8,9 +8,9 @@
 //! The interpreter does not run the typechecker, so other tests document when
 //! static checking and runtime disagree (e.g. `3 * true`).
 
-use scala_rs::interpreter::Interpreter;
-use scala_rs::typechecker;
-use scala_rs::value::Value;
+use scala::interpreter::Interpreter;
+use scala::typechecker;
+use scala::value::Value;
 
 fn compile(source: &str) -> Result<(), String> {
     typechecker::typecheck_source(source).map_err(|errs| {

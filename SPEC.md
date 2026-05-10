@@ -1,6 +1,6 @@
-# scala-rs Language Specification
+# scala Language Specification
 
-This document defines the language subset of Scala that scala-rs implements.
+This document defines the language subset of Scala that scala implements.
 
 ## 1. Lexical Structure
 
@@ -516,7 +516,7 @@ class Vec(val x: Int, val y: Int) {
 
 ## 15. Type Inference
 
-scala-rs supports local type inference:
+scala supports local type inference:
 
 - `val x = 42` infers `Int`
 - `def f(x: Int) = x + 1` infers return type `Int`

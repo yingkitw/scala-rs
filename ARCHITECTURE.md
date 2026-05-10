@@ -1,8 +1,8 @@
-# scala-rs Architecture
+# scala Architecture
 
 ## Overview
 
-scala-rs is a Scala language interpreter implemented in Rust. It processes Scala source code through a classic compiler pipeline: **Lexing -> Parsing -> Type Checking -> Interpretation**.
+scala is a Scala language interpreter implemented in Rust. It processes Scala source code through a classic compiler pipeline: **Lexing -> Parsing -> Type Checking -> Interpretation**.
 
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────────┐    ┌─────────────┐

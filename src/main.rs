@@ -3,23 +3,23 @@ use std::fs;
 use std::process;
 
 fn print_usage() {
-    println!("scala-rs - A Scala interpreter written in Rust");
+    println!("scala - A Scala interpreter written in Rust");
     println!();
     println!("Usage:");
-    println!("  scala-rs <file.scala>        Run a Scala source file");
-    println!("  scala-rs --repl              Start interactive REPL");
-    println!("  scala-rs --check <file>      Type-check only");
-    println!("  scala-rs --tokens <file>     Dump tokens");
-    println!("  scala-rs --ast <file>        Dump AST");
-    println!("  scala-rs --help              Show this help");
-    println!("  scala-rs --version           Show version");
+    println!("  scala <file.scala>           Run a Scala source file");
+    println!("  scala --repl                 Start interactive REPL");
+    println!("  scala --check <file>         Type-check only");
+    println!("  scala --tokens <file>        Dump tokens");
+    println!("  scala --ast <file>           Dump AST");
+    println!("  scala --help                 Show this help");
+    println!("  scala --version              Show this version");
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() == 1 {
-        println!("scala-rs: no input files");
+        println!("scala: no input files");
         println!("Use --repl for interactive mode or <file.scala> to run a file.");
         process::exit(1);
     }
@@ -29,10 +29,10 @@ fn main() {
             print_usage();
         }
         "--version" | "-v" => {
-            println!("scala-rs 0.1.0");
+            println!("scala 0.1.0");
         }
         "--repl" => {
-            scala_rs::repl::run_repl();
+            scala::repl::run_repl();
         }
         "--check" => {
             if args.len() < 3 {
@@ -45,7 +45,7 @@ fn main() {
                     eprintln!("error: cannot read '{}': {}", path, e);
                     process::exit(1);
                 });
-            if let Err(e) = scala_rs::run_file(&source, true, false, false) {
+            if let Err(e) = scala::run_file(&source, true, false, false) {
                 eprintln!("{}", e);
                 process::exit(1);
             }
@@ -61,7 +61,7 @@ fn main() {
                     eprintln!("error: cannot read '{}': {}", path, e);
                     process::exit(1);
                 });
-            if let Err(e) = scala_rs::run_file(&source, false, true, false) {
+            if let Err(e) = scala::run_file(&source, false, true, false) {
                 eprintln!("{}", e);
                 process::exit(1);
             }
@@ -77,7 +77,7 @@ fn main() {
                     eprintln!("error: cannot read '{}': {}", path, e);
                     process::exit(1);
                 });
-            if let Err(e) = scala_rs::run_file(&source, false, false, true) {
+            if let Err(e) = scala::run_file(&source, false, false, true) {
                 eprintln!("{}", e);
                 process::exit(1);
             }
@@ -93,7 +93,7 @@ fn main() {
                     eprintln!("error: cannot read '{}': {}", file, e);
                     process::exit(1);
                 });
-            if let Err(e) = scala_rs::run_file(&source, false, false, false) {
+            if let Err(e) = scala::run_file(&source, false, false, false) {
                 eprintln!("{}", e);
                 process::exit(1);
             }

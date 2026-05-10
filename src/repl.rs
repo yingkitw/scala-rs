@@ -2,7 +2,7 @@ use crate::interpreter::Interpreter;
 use crate::value::Value;
 
 pub fn run_repl() {
-    println!("scala-rs REPL (type :quit to exit, :help for help)");
+    println!("scala REPL (type :quit to exit, :help for help)");
 
     let mut interp = Interpreter::new();
     let rl = rustyline::DefaultEditor::new();
